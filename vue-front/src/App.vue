@@ -79,14 +79,24 @@
 
         </v-card>
 
-        <v-textarea
-            class="pa-3"
-            v-if="yaml.length > 1"
-            outlined
-            name="input-7-4"
-            label="template.yml"
-            :value="yaml"
-        ></v-textarea>
+        <v-card v-if="yaml.length > 1" elevation="2" class="pa-3">
+          <v-textarea
+              outlined
+              name="input-7-4"
+              label="template.yml"
+              :value="yaml"
+          ></v-textarea>
+        </v-card>
+
+        <v-card v-if="yaml.length > 1" elevation="2" class="pa-3">
+          <v-textarea
+              outlined
+              name="input-7-4"
+              label="template.yml"
+              :value="files"
+          ></v-textarea>
+        </v-card>
+
 
 
 
@@ -116,6 +126,8 @@ export default {
     appRuntime: '',
 
     yaml : '',
+
+    files : '',
 
     currentFile: undefined,
 
@@ -147,7 +159,8 @@ export default {
         }).then(response => {
           console.log(response);
           console.log("done");
-          this.yaml = response.data;
+          this.yaml = response.data.template;
+          this.files = response.data.files;
         }).catch(e => {
           console.log(e);
         })

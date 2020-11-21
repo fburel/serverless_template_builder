@@ -1,0 +1,31 @@
+endpoint;method;description;handler
+/;GET;accueil;health-check.default
+/api-status;GET;execute les tests d’API et retourne le resultat;health-check.test
+/message;POST;test l’envoie de mail;messaging.send
+/oauth2/authorize;GET;retourne le formulaire de login;oauth.authorize
+/oauth2/authorize;POST;Recoit la reponse de la page d’authorisation;oauth.callback
+/oauth2/token;POST;Token exchange pour oauth2;oauth.tokenExchange
+/skills/discover;GET;retourne la liste des piéce pour Alexa;alexa.discover
+/skills/room/{id};GET;retourne l’etat de la piece;alexa.getRoom
+/skills/room/{id};POST;change l’état de la piece;alexa.changeRoom
+/google;POST;Gere les demandes de Google Home;google.request
+/api/1/signin;POST;login;authentication.login
+/api/1/signup;POST;creation de compte;authentication.signup
+/api/1/iforgot;POST;envoie d’un code de renouvellement de mot de passe;authentication.iForgot
+/api/1/ichange;POST;execute le changement de mot de passe;authentication.iChange
+/api/1/invitations/{id};DELETE;Revoque une invitation;invitation.revoke
+/api/1/invitations;GET;retourne la liste des domicile associé a l’utilisateur;invitation.findForUser
+/api/1/invitations/{id};GET;retourne la liste des invitation pour un domicile;invitation.FindForHome
+/api/1/invitations/;POST;envoie une invitation;invitation.create
+/api/1/invitations/{id};PUT;met à jour une invitation;invitation.update
+/api/1/homes;POST;Creer un nouveau domicile pour l’utilisateur;home.create
+/api/1/homes/{id};GET;retourne un domicile;home.get
+/api/1/homes;PUT;met à jour le domicile;home.update
+/api/1/relai;POST;enregistre une nouvelle box smartlink;gateway.register
+/api/1/device/notify;POST;envoie une notification a un domicile;gateway.notify
+/api/1/geofencing;POST;envoie une action je pars / j’arrive;gateway.geofencing
+/api/1/deviceStatus/{id};GET;retourne le rapport conso/status pour la maison;diagnosys.get
+/api/1/deviceStatus/{id};POST;enregistre le rapport conso/status pour la maison;diagnosys.register
+/api/1/consumption;POST;calcul le bilan thermique;conso.evaluate
+/api/1/usermanual/{ref};GET;retourne la notice en PDF;notice.get
+/api/1/assistance/{lang};GET;retourne l’aide dans la langue demandée;assistance.get
