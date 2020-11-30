@@ -5,68 +5,73 @@ const formidable = require('formidable');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
 const csv = require('fast-csv');
+var AdmZip = require('adm-zip');
 
 /**
  * process the csv
  */
-router.post('/upload', function (req, res, next) {
+router.post('/upload', async function (req, res, next) {
 
-    let response = {};
-
-    extractfileFromForm(req)
-
-        .then(form => {
-            console.log(form);
-            response.name = form.appName;
-            response.description = form.appDesc;
-            response.runtime = form.appRuntime;
-            return parsefile(form.apiFile)
+    try {
+        const form = await extractfileFromForm(req);
+        console.log(form);
+    
+        const appName = form.appName;
+        const descritption = form.appDesc;
+        const runtime = form.appRuntime; 
+        const apis = await parsefile(form.apiFile)
+    
+        let files = [];
+    
+        apis.forEach(api => {
+            const fileName = api.handler.split('.')[0];
+    
+            if(!files.includes(fileName))
+            {
+                files.push(fileName);
+            }
         })
+    
+        let template = buildTemplate(apis, appName, descritption, runtime)
+    
+        await createFiles(files, appName);
+    
+        await fillApifiles(apis, appName);
 
-        .then(apis => {
-            response.apis = apis;
-            console.log(apis);
+        await writeFile(appName, 'template.yml', template, []);
 
-            let files = [];
+        let str = "{\n" +
+        "    \"name\": \"{{1}}\",\n" +
+        "    \"description\": \"{{2}}\",\n" +
+        "    \"version\": \"0.0.1\",\n" +
+        "    \"private\": true,\n" +
+        "    \"dependencies\": {\n" +
+        "        \"aws-sdk\": \"^2.437.0\"\n" +
+        "    }\n" +
+        "}\n";
+        
+        await writeFile(appName, 'package.json', str, [appName, descritption]);
 
-            apis.forEach(api => {
-                const fileName = api.handler.split('.')[0];
 
-                if(!files.includes(fileName))
-                {
-                    files.push(fileName);
-                }
-            })
+        const z = zip(appName);
 
-            response.files = files;
+        res.writeHead(200, {
+            "Content-Disposition": "attachment;filename=" + appName +'.zip',
+            'Content-Type': 'application/zip'
+        });
 
-            response.template = buildTemplate(apis, response.name, response.description, response.runtime)
+        res.write(z);
 
-            return Promise.resolve(response.template);
+        res.end();
 
-        })
-
-        .then(fileName => {
-
-            return createFiles(response.files);
-
-        })
-
-        .then(() => {
-
-            return fillApifiles(response.apis);
-
-        })
-
-        .then(() => {
-            res.json(response);
-        })
-
-        .catch(err => {
-            console.log(err);
-            res.status(500);
-            res.json(err);
-        })
+    
+    }
+    catch (e)
+    {
+        console.log(e);
+        res.status(500);
+        res.json(e);
+    }
 });
 
 module.exports = router;
@@ -137,6 +142,27 @@ function parsefile(path)
     });
 }
 
+function zip (path)
+{
+    var zip = new AdmZip();
+    zip.addLocalFolder('tmp/' + path);
+    const buffer =  zip.toBuffer();
+    return buffer.toString('base64');
+}
+
+async function writeFile(path, fileName, template, values)
+{
+    let str = template;
+    for (const [text, idx] in values)
+    {
+        let find = "{{" + idx + "}}";
+        const regex = new RegExp(find, 'g');
+        str = str.replace(regex, text);
+    }
+    const filePath = 'tmp/' + path  + '/' + fileName;
+    await fsPromises.writeFile(filePath, str);
+}
+
 function buildTemplate(apis, appName, appDescription, appRuntime)
 {
     let string = '';
@@ -194,21 +220,26 @@ function buildTemplate(apis, appName, appDescription, appRuntime)
 
 }
 
-async function createFiles(files)
+async function createFiles(files, projectName)
 {
+    const path = 'tmp/' + projectName + '/src/handler/';
+    await fsPromises.mkdir(path, { recursive: true });
+
     for(const file of files)
     {
-        await fsPromises.writeFile('tmp/' + file + '.js', '');
+        const filePath = path  + file + '.js';
+        console.log(filePath);
+        await fsPromises.writeFile(filePath, '');
     }
 }
 
-async function fillApifiles(apis)
+async function fillApifiles(apis, projectName)
 {
     for(const api of apis)
     {
         const splits = api.handler.split('.');
         const filename = splits[0] + '.js';
-        const path = 'tmp/' + filename;
+        const path = 'tmp/' + projectName + '/src/handler/' + filename;
         const func = api.handler.split('.')[1];
 
         let methodTemplate = "/**\n" +
@@ -246,56 +277,3 @@ async function fillApifiles(apis)
         await fsPromises.appendFile(path, methodTemplate);
     }
 }
-
-
-
-
-// async function  buildTemplate(apis, appName, appDescription, appRuntime)
-// {
-//     const fileName = 'template.yml';
-//     const handlerPath = 'src/handlers/';
-//
-//     await fsPromises.writeFile(fileName, '# This is the SAM template that represents the architecture of your serverless application \n');
-//
-//     await fsPromises.appendFile(fileName, 'AWSTemplateFormatVersion: 2010-09-09 \n');
-//     await fsPromises.appendFile(fileName, 'Description: >- \n');
-//     await fsPromises.appendFile(fileName, '  ' + appName + '\n');
-//     await fsPromises.appendFile(fileName, 'Transform: \n');
-//     await fsPromises.appendFile(fileName, '- AWS::Serverless-2016-10-31 \n');
-//     await fsPromises.appendFile(fileName, '\n');
-//     await fsPromises.appendFile(fileName, 'Resources: \n');
-//
-//     let count = 0;
-//     const zeroPad = (num, places) => String(num).padStart(places, '0')
-//
-//     for (const api of apis) {
-//         count++;
-//
-//         const name = 'function_' + zeroPad(count, 4);
-//
-//         await fsPromises.appendFile(fileName, '  ' + name+ ':' + '\n');
-//         await fsPromises.appendFile(fileName, '    ' + 'Type: AWS::Serverless::Function' + '\n');
-//         await fsPromises.appendFile(fileName, '    ' + 'Properties:' + '\n');
-//         await fsPromises.appendFile(fileName, '      ' + 'Handler: ' + handlerPath + api.handler + '\n');
-//         await fsPromises.appendFile(fileName, '      ' + 'Runtime: ' + appRuntime + '\n');
-//         await fsPromises.appendFile(fileName, '      ' + 'MemorySize: 128' + '\n');
-//         await fsPromises.appendFile(fileName, '      ' + 'Timeout: 100' + '\n');
-//         await fsPromises.appendFile(fileName, '      ' + 'Description: ' + api.description + '\n');
-//         await fsPromises.appendFile(fileName, '      ' + 'Event: ' + '\n');
-//         await fsPromises.appendFile(fileName, '        ' + 'Api:' + '\n');
-//         await fsPromises.appendFile(fileName, '          ' + 'Type: Api' + '\n');
-//         await fsPromises.appendFile(fileName, '          ' + 'Properties:' + '\n');
-//         await fsPromises.appendFile(fileName, '            ' + 'Path: ' + api.endpoint + '\n');
-//         await fsPromises.appendFile(fileName, '            ' + 'Method: ' + api.method + '\n');
-//         await fsPromises.appendFile(fileName, '\n');
-//     }
-//
-//     await fsPromises.appendFile(fileName, '\n');
-//     await fsPromises.appendFile(fileName,  'Outputs:' + '\n');
-//     await fsPromises.appendFile(fileName,  '  ' + 'WebEndpoint:' + '\n');
-//     await fsPromises.appendFile(fileName,  '    ' + 'Description: "' + appDescription + '"' + '\n');
-//     await fsPromises.appendFile(fileName,  '    ' + 'Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"' + '\n');
-//
-//     return fileName;
-//
-// }
